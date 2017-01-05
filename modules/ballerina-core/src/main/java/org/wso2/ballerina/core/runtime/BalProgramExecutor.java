@@ -100,8 +100,12 @@ public class BalProgramExecutor {
 
                 // Read from command line arguments
                 String balArgs = System.getProperty(SYSTEM_PROP_BAL_ARGS);
-                String[] arguments = balArgs.split(";");
-
+                String[] arguments;
+                if (balArgs.trim().length() == 0) {
+                    arguments = new String[0];
+                } else {
+                    arguments = balArgs.split(";");
+                }
                 Expression[] exprs = new Expression[1];
                 VariableRefExpr variableRefExpr = new VariableRefExpr(argsName);
                 LocalVarLocation location = new LocalVarLocation(0);

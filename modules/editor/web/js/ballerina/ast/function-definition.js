@@ -22,6 +22,7 @@ define(['lodash', './callable-definition', './connector-declaration'], function 
         CallableDefinition.call(this, 'Function');
         this._functionName = _.get(args, 'functionName') || 'newFunction';
         this._functionArguments = _.get(args, "functionArgs", []);
+        this._isPublic = _.get(args, "isPublic") || false;
     };
 
     FunctionDefinition.prototype = Object.create(CallableDefinition.prototype);
@@ -44,9 +45,15 @@ define(['lodash', './callable-definition', './connector-declaration'], function 
         }
     };
 
-    FunctionDefinition.prototype.setFunctionArguments = function (args) {
+    FunctionDefinition.prototype.setArguments = function (args) {
         if (!_.isNil(name)) {
-            this._functionArguments = args;
+            this._arguments = args;
+        }
+    };
+
+    FunctionDefinition.prototype.setIsPublic = function(isPublic){
+        if(!_.isNil(isPublic)){
+            this._isPublic = isPublic;
         }
     };
 
@@ -54,33 +61,51 @@ define(['lodash', './callable-definition', './connector-declaration'], function 
         return this._functionName;
     };
 
-    FunctionDefinition.prototype.getFunctionArguments = function () {
-        return this._functionArguments;
+    FunctionDefinition.prototype.getArguments = function () {
+        return this._arguments;
     };
 
-    FunctionDefinition.prototype.getFunctionArgumentsAsString = function () {
-        var functionArgsAsString = "";
-        var functionArgs = this._functionArguments;
-        _.forEach(this._functionArguments, function(argument, index){
-            functionArgsAsString += argument.type + " ";
-            functionArgsAsString += argument.identifier;
-            if (functionArgs.length - 1 != index) {
-                functionArgsAsString += ", ";
+    FunctionDefinition.prototype.getIsPublic = function () {
+        return this._isPublic;
+    };
+
+    /**
+     * Returns the list of arguments as a string separated by commas.
+     * @return {string} - Arguments as string.
+     */
+    FunctionDefinition.prototype.getArgumentsAsString = function () {
+        var argsAsString = "";
+        var args = this._arguments;
+        _.forEach(this._arguments, function(argument, index){
+            argsAsString += argument.type + " ";
+            argsAsString += argument.identifier;
+            if (args.length - 1 != index) {
+                argsAsString += ", ";
             }
         });
 
-        return functionArgsAsString;
+        return argsAsString;
     };
 
-    FunctionDefinition.prototype.addFunctionArgument = function(type, identifier) {
-        this._functionArguments.push({
+    /**
+     * Adds new argument to the function definition.
+     * @param type - The type of the argument.
+     * @param identifier - The identifier of the argument.
+     */
+    FunctionDefinition.prototype.addArgument = function(type, identifier) {
+        this._arguments.push({
             type: type,
             identifier: identifier
         })
     };
 
-    FunctionDefinition.prototype.removeFunctionArgument = function(identifier) {
-        _.remove(this._functionArguments, function(functionArg) {
+    /**
+     * Removes an argument from a function definition.
+     * @param identifier - The identifier of the argument.
+     * @return {Array} - The removed argument.
+     */
+    FunctionDefinition.prototype.removeArgument = function(identifier) {
+       return  _.remove(this._arguments, function(functionArg) {
             return functionArg.identifier === identifier;
         });
     };
@@ -109,6 +134,24 @@ define(['lodash', './callable-definition', './connector-declaration'], function 
             || BallerinaASTFactory.isVariableDeclaration(node)
             || BallerinaASTFactory.isWorkerDeclaration(node)
             || BallerinaASTFactory.isStatement(node);
+    };
+
+    /**
+     * initialize from json
+     * @param jsonNode
+     */
+    FunctionDefinition.prototype.initFromJson = function (jsonNode) {
+        this._functionName = jsonNode.function_name;
+        this._annotations = jsonNode.annotations;
+        this._isPublic = jsonNode.is_public_function;
+
+        var self = this;
+        var BallerinaASTFactory = this.getFactory();
+
+        _.each(jsonNode.children, function (childNode) {
+            var child = BallerinaASTFactory.createFromJson(childNode);
+            self.addChild(child);
+        });
     };
 
     return FunctionDefinition;

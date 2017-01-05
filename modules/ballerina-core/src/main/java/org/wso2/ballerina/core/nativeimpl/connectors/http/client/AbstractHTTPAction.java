@@ -113,6 +113,9 @@ public abstract class AbstractHTTPAction extends AbstractNativeAction {
         } catch (InterruptedException ignore) {
         } catch (Throwable e) {
             throw new BallerinaException(e.getMessage(), context);
+        } finally {
+            // finally release the carbon message
+            message.release();
         }
         return null;
     }

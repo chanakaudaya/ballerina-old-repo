@@ -240,7 +240,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_passthrough2.setResourceArguments("message m");
+                resource_passthrough2.addArgument("message", "m");
 
                 var functionInvocation = BallerinaASTFactory.createFunctionInvocationStatement();
                 functionInvocation.setPackageName("http");
@@ -341,7 +341,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_passthrough2.setResourceArguments("message m");
+                resource_passthrough2.addArgument("message", "m");
 
                 var connector_declaration = BallerinaASTFactory.createConnectorDeclaration();
                 connector_declaration.setConnectorName("nyseEP");
@@ -389,7 +389,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_stocks.setResourceArguments("message m");
+                resource_passthrough2.addArgument("message", "m");
 
                 var variableResponse = BallerinaASTFactory.createVariableDeclaration();
                 variableResponse.setType('message');
@@ -479,7 +479,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_passthrough2.setResourceArguments("message m");
+                resource_passthrough2.addAnnotation("message", "m");
 
                 var nyseEPConnectorDeclaration = BallerinaASTFactory.createConnectorDeclaration();
                 nyseEPConnectorDeclaration.setConnectorName("nyseEP");
@@ -622,7 +622,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_stocks.setResourceArguments("message m");
+                resource_stocks.addAnnotation("message", "m");
 
                 var variableResponse = BallerinaASTFactory.createVariableDeclaration();
                 variableResponse.setType('message');
@@ -673,7 +673,7 @@ define(['require', 'log', 'jquery', 'backbone', 'command', 'ballerina'],
 
                 var resourceArguments = [];
                 resourceArguments.push(resourceArgument_m);
-                resource_stocks.setResourceArguments("message m");
+                resource_stocks.addAnnotation("message", "m");
 
                 var variableResponse = BallerinaASTFactory.createVariableDeclaration();
                 variableResponse.setType('message');
