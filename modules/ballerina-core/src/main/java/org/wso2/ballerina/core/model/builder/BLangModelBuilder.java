@@ -19,6 +19,8 @@ package org.wso2.ballerina.core.model.builder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.wso2.ballerina.core.exception.BLangExceptionHelper;
+import org.wso2.ballerina.core.exception.SemanticErrors;
 import org.wso2.ballerina.core.model.Annotation;
 import org.wso2.ballerina.core.model.BTypeMapper;
 import org.wso2.ballerina.core.model.BallerinaAction;
@@ -69,6 +71,7 @@ import org.wso2.ballerina.core.model.expressions.VariableRefExpr;
 import org.wso2.ballerina.core.model.statements.ActionInvocationStmt;
 import org.wso2.ballerina.core.model.statements.AssignStmt;
 import org.wso2.ballerina.core.model.statements.BlockStmt;
+import org.wso2.ballerina.core.model.statements.BreakStmt;
 import org.wso2.ballerina.core.model.statements.CommentStmt;
 import org.wso2.ballerina.core.model.statements.ForkJoinStmt;
 import org.wso2.ballerina.core.model.statements.FunctionInvocationStmt;
@@ -76,6 +79,8 @@ import org.wso2.ballerina.core.model.statements.IfElseStmt;
 import org.wso2.ballerina.core.model.statements.ReplyStmt;
 import org.wso2.ballerina.core.model.statements.ReturnStmt;
 import org.wso2.ballerina.core.model.statements.Statement;
+import org.wso2.ballerina.core.model.statements.ThrowStmt;
+import org.wso2.ballerina.core.model.statements.TryCatchStmt;
 import org.wso2.ballerina.core.model.statements.VariableDefStmt;
 import org.wso2.ballerina.core.model.statements.WhileStmt;
 import org.wso2.ballerina.core.model.statements.WorkerInvocationStmt;
@@ -102,8 +107,6 @@ import java.util.Stack;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.wso2.ballerina.core.model.util.LangModelUtils.getNodeLocationStr;
 
 /**
  * {@code BLangModelBuilder} provides an high-level API to create Ballerina language object model(AST).
@@ -135,8 +138,12 @@ public class BLangModelBuilder {
     private Stack<Annotation.AnnotationBuilder> annotationBuilderStack = new Stack<>();
     private Stack<BlockStmt.BlockStmtBuilder> blockStmtBuilderStack = new Stack<>();
     private Stack<IfElseStmt.IfElseStmtBuilder> ifElseStmtBuilderStack = new Stack<>();
+
+    private Stack<TryCatchStmt.TryCatchStmtBuilder> tryCatchStmtBuilderStack = new Stack<>();
+
     private Stack<ForkJoinStmt.ForkJoinStmtBuilder> forkJoinStmtBuilderStack = new Stack<>();
     private Stack<List<Worker>> workerStack = new Stack<>();
+
     private Stack<SimpleTypeName> typeNameStack = new Stack<>();
     private Stack<CallableUnitName> callableUnitNameStack = new Stack<>();
     private Stack<Expression> exprStack = new Stack<>();
@@ -180,8 +187,8 @@ public class BLangModelBuilder {
                     String importPkgErrStr = (importPkg.getAsName() == null) ? pkgPathStr : pkgPathStr + " as '" +
                             importPkg.getAsName() + "'";
 
-                   errorMsgs.add(getNodeLocationStr(location) +
-                           "unused import package " + importPkgErrStr + "");
+                    errorMsgs.add(BLangExceptionHelper
+                            .constructSemanticError(location, SemanticErrors.UNUSED_IMPORT_PACKAGE, importPkgErrStr));
                 });
 
         bFileBuilder.setErrorMsgs(errorMsgs);
@@ -208,8 +215,8 @@ public class BLangModelBuilder {
         }
 
         if (importPkgMap.get(importPkg.getName()) != null) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared imported package name '" + importPkg.getName() + "'";
+            String errMsg = BLangExceptionHelper
+                    .constructSemanticError(location, SemanticErrors.REDECLARED_IMPORT_PACKAGE, importPkg.getName());
             errorMsgs.add(errMsg);
         }
 
@@ -246,8 +253,8 @@ public class BLangModelBuilder {
 
         // Check whether this constant is already defined.
         if (currentScope.resolve(symbolName) != null) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + name + "'";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, name);
             errorMsgs.add(errMsg);
         }
 
@@ -287,8 +294,8 @@ public class BLangModelBuilder {
         StructDef structScope = (StructDef) currentScope;
         BLangSymbol fieldSymbol = structScope.resolveMembers(symbolName);
         if (fieldSymbol != null) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + fieldName + "'";
+            String errMsg = BLangExceptionHelper
+                    .constructSemanticError(location, SemanticErrors.REDECLARED_SYMBOL, fieldName);
             errorMsgs.add(errMsg);
         }
 
@@ -326,8 +333,8 @@ public class BLangModelBuilder {
 
         // Check whether this constant is already defined.
         if (currentScope.resolve(symbolName) != null) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + name + "'";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, name);
             errorMsgs.add(errMsg);
         }
 
@@ -403,8 +410,8 @@ public class BLangModelBuilder {
         // Check whether this constant is already defined.
         BLangSymbol paramSymbol = currentScope.resolve(symbolName);
         if (paramSymbol != null && paramSymbol.getSymbolScope().getScopeName() == SymbolScope.ScopeName.LOCAL) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + paramName + "'";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, paramName);
             errorMsgs.add(errMsg);
         }
 
@@ -449,8 +456,8 @@ public class BLangModelBuilder {
         // Check whether this constant is already defined.
         BLangSymbol paramSymbol = currentScope.resolve(symbolName);
         if (paramSymbol != null && paramSymbol.getSymbolScope().getScopeName() == SymbolScope.ScopeName.LOCAL) {
-            String errMsg = location.getFileName() + ":" + location.getLineNumber() +
-                    ": redeclared symbol '" + paramName + "'";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, paramName);
             errorMsgs.add(errMsg);
         }
 
@@ -567,7 +574,8 @@ public class BLangModelBuilder {
             // TODO Add support for bracedExpression, binaryPowExpression, binaryModExpression
 
             default:
-                String errMsg = getNodeLocationStr(location) + "unsupported operator '" + opStr + "'";
+                String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                        SemanticErrors.UNSUPPORTED_OPERATOR, opStr);
                 errorMsgs.add(errMsg);
                 // Creating a dummy expression
                 expr = new BinaryExpression(location, lExpr, null, rExpr);
@@ -595,8 +603,8 @@ public class BLangModelBuilder {
                 break;
 
             default:
-                String errMsg = getNodeLocationStr(location) +
-                        "unsupported operator '" + op + "'";
+                String errMsg = BLangExceptionHelper
+                        .constructSemanticError(location, SemanticErrors.UNSUPPORTED_OPERATOR, op);
                 errorMsgs.add(errMsg);
 
                 // Creating a dummy expression
@@ -961,8 +969,8 @@ public class BLangModelBuilder {
         if (blockStmtBuilderStack.size() == 0 && currentCUGroupBuilder != null) {
             if (rhsExpr != null) {
                 if (rhsExpr instanceof ActionInvocationExpr) {
-                    String errMsg = getNodeLocationStr(location) +
-                            "action invocation is not allowed here";
+                    String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                            SemanticErrors.ACTION_INVOCATION_NOT_ALLOWED_HERE);
                     errorMsgs.add(errMsg);
                 }
 
@@ -1013,8 +1021,8 @@ public class BLangModelBuilder {
     public void createReplyStmt(NodeLocation location) {
         Expression argExpr = exprStack.pop();
         if (!(argExpr instanceof VariableRefExpr)) {
-            String errMsg = getNodeLocationStr(location) +
-                    "only a variable reference of type 'message' is allowed here";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REF_TYPE_MESSAGE_ALLOWED);
             errorMsgs.add(errMsg);
         }
         ReplyStmt replyStmt = new ReplyStmt(location, argExpr);
@@ -1050,6 +1058,13 @@ public class BLangModelBuilder {
         blockStmtBuilderStack.peek().addStmt(whileStmt);
     }
 
+    public void createBreakStmt(NodeLocation location) {
+        BreakStmt.BreakStmtBuilder breakStmtBuilder = new BreakStmt.BreakStmtBuilder();
+        breakStmtBuilder.setNodeLocation(location);
+        BreakStmt breakStmt = breakStmtBuilder.build();
+        addToBlockStmt(breakStmt);
+    }
+
     public void startIfElseStmt(NodeLocation location) {
         IfElseStmt.IfElseStmtBuilder ifElseStmtBuilder = new IfElseStmt.IfElseStmtBuilder();
         ifElseStmtBuilder.setNodeLocation(location);
@@ -1083,7 +1098,7 @@ public class BLangModelBuilder {
 
         currentScope = blockStmt.getEnclosingScope();
     }
-    
+
     public void addElseIfClause() {
         IfElseStmt.IfElseStmtBuilder ifElseStmtBuilder = ifElseStmtBuilderStack.peek();
 
@@ -1119,7 +1134,80 @@ public class BLangModelBuilder {
         addToBlockStmt(ifElseStmt);
     }
 
-public void startForkJoinStmt(NodeLocation nodeLocation) {
+
+    public void startTryCatchStmt(NodeLocation location) {
+        TryCatchStmt.TryCatchStmtBuilder tryCatchStmtBuilder = new TryCatchStmt.TryCatchStmtBuilder();
+        tryCatchStmtBuilder.setLocation(location);
+        tryCatchStmtBuilderStack.push(tryCatchStmtBuilder);
+
+        BlockStmt.BlockStmtBuilder blockStmtBuilder = new BlockStmt.BlockStmtBuilder(location, currentScope);
+        blockStmtBuilderStack.push(blockStmtBuilder);
+
+        currentScope = blockStmtBuilder.getCurrentScope();
+    }
+
+    public void startCatchClause(NodeLocation location) {
+        TryCatchStmt.TryCatchStmtBuilder tryCatchStmtBuilder = tryCatchStmtBuilderStack.peek();
+
+        // Creating Try clause.
+        BlockStmt.BlockStmtBuilder blockStmtBuilder = blockStmtBuilderStack.pop();
+        BlockStmt tryBlock = blockStmtBuilder.build();
+        tryCatchStmtBuilder.setTryBlock(tryBlock);
+        currentScope = tryBlock.getEnclosingScope();
+
+        // Staring parsing catch clause.
+        TryCatchStmt.CatchBlock catchBlock = new TryCatchStmt.CatchBlock(currentScope);
+        tryCatchStmtBuilder.setCatchBlock(catchBlock);
+        currentScope = catchBlock;
+
+        BlockStmt.BlockStmtBuilder catchBlockBuilder = new BlockStmt.BlockStmtBuilder(location, currentScope);
+        blockStmtBuilderStack.push(catchBlockBuilder);
+
+        currentScope = catchBlockBuilder.getCurrentScope();
+    }
+
+    public void addCatchClause(NodeLocation location, String argName) {
+        TryCatchStmt.TryCatchStmtBuilder tryCatchStmtBuilder = tryCatchStmtBuilderStack.peek();
+
+        SimpleTypeName exceptionType = typeNameStack.pop();
+        if (!TypeConstants.EXCEPTION_TNAME.equals(exceptionType.getName())) {
+            String errMsg = getNodeLocationStr(location) +
+                    "only a reference of type 'exception' is allowed here";
+            errorMsgs.add(errMsg);
+        }
+
+        BlockStmt.BlockStmtBuilder catchBlockBuilder = blockStmtBuilderStack.pop();
+        BlockStmt catchBlock = catchBlockBuilder.build();
+        currentScope = catchBlock.getEnclosingScope();
+
+        SymbolName symbolName = new SymbolName(argName);
+        ParameterDef paramDef = new ParameterDef(catchBlock.getNodeLocation(), argName, exceptionType, symbolName,
+                currentScope);
+        currentScope.resolve(symbolName);
+        currentScope.define(symbolName, paramDef);
+        tryCatchStmtBuilder.getCatchBlock().setParameterDef(paramDef);
+        tryCatchStmtBuilder.setCatchBlockStmt(catchBlock);
+    }
+
+    public void addTryCatchStmt() {
+        TryCatchStmt.TryCatchStmtBuilder tryCatchStmtBuilder = tryCatchStmtBuilderStack.pop();
+        TryCatchStmt tryCatchStmt = tryCatchStmtBuilder.build();
+        addToBlockStmt(tryCatchStmt);
+    }
+
+    public void createThrowStmt(NodeLocation location) {
+        Expression expression = exprStack.pop();
+        if (expression instanceof VariableRefExpr || expression instanceof FunctionInvocationExpr) {
+            ThrowStmt throwStmt = new ThrowStmt(location, expression);
+            addToBlockStmt(throwStmt);
+            return;
+        }
+        String errMsg = getNodeLocationStr(location) +
+                "only a variable reference of type 'exception' is allowed here";
+        errorMsgs.add(errMsg);
+    }
+
+    public void startForkJoinStmt(NodeLocation nodeLocation) {
         //blockStmtBuilderStack.push(new BlockStmt.BlockStmtBuilder(nodeLocation, currentScope));
         ForkJoinStmt.ForkJoinStmtBuilder forkJoinStmtBuilder = new ForkJoinStmt.ForkJoinStmtBuilder(currentScope);
         forkJoinStmtBuilder.setNodeLocation(nodeLocation);
@@ -1143,8 +1231,8 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
         // Check whether this constant is already defined.
         BLangSymbol paramSymbol = currentScope.resolve(symbolName);
         if (paramSymbol != null && paramSymbol.getSymbolScope().getScopeName() == SymbolScope.ScopeName.LOCAL) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + paramName + "'";
+            String errMsg =  BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, paramName);
             errorMsgs.add(errMsg);
         }
 
@@ -1160,8 +1248,8 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
 
         forkJoinStmtBuilder.setJoinType(joinType);
         if (Integer.parseInt(joinCount) != 1) {
-            String errMsg = getNodeLocationStr(location) +
-                    "Only count 1 is allowed in this version";
+            String errMsg =  BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.ONLY_COUNT_1_ALLOWED_THIS_VERSION);
             errorMsgs.add(errMsg);
         }
         forkJoinStmtBuilder.setJoinCount(Integer.parseInt(joinCount));
@@ -1193,8 +1281,8 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
         // Check whether this constant is already defined.
         BLangSymbol paramSymbol = currentScope.resolve(symbolName);
         if (paramSymbol != null && paramSymbol.getSymbolScope().getScopeName() == SymbolScope.ScopeName.LOCAL) {
-            String errMsg = getNodeLocationStr(location) +
-                    "redeclared symbol '" + paramName + "'";
+            String errMsg =  BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REDECLARED_SYMBOL, paramName);
             errorMsgs.add(errMsg);
         }
 
@@ -1215,6 +1303,7 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
         ForkJoinStmt forkJoinStmt = forkJoinStmtBuilder.build();
         addToBlockStmt(forkJoinStmt);
         currentScope = forkJoinStmt.getEnclosingScope();
+
     }
 
     public void createFunctionInvocationStmt(NodeLocation location) {
@@ -1427,8 +1516,8 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
                                               ImportPackage importPackage,
                                               Supplier<String> symbolNameSupplier) {
         if (pkgName != null && importPackage == null) {
-            String errMsg = getNodeLocationStr(location) +
-                    "undefined package name '" + pkgName + "' in '" + symbolNameSupplier.get() + "'";
+            String errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.UNDEFINED_PACKAGE_NAME, pkgName, symbolNameSupplier.get());
             errorMsgs.add(errMsg);
         }
     }
@@ -1442,24 +1531,24 @@ public void startForkJoinStmt(NodeLocation nodeLocation) {
     private void checkArgExprValidity(NodeLocation location, Expression argExpr) {
         String errMsg = null;
         if (argExpr instanceof BacktickExpr) {
-            errMsg = getNodeLocationStr(location) +
-                    "xml/json template expression is not allowed here";
+            errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.TEMPLATE_EXPRESSION_NOT_ALLOWED_HERE);
 
         } else if (argExpr instanceof ActionInvocationExpr) {
-            errMsg = getNodeLocationStr(location) +
-                    "action invocation is not allowed here";
+            errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.ACTION_INVOCATION_NOT_ALLOWED_HERE);
 
         } else if (argExpr instanceof ArrayInitExpr) {
-            errMsg = getNodeLocationStr(location) +
-                    "array initializer is not allowed here";
+            errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.ARRAY_INIT_NOT_ALLOWED_HERE);
 
         } else if (argExpr instanceof ConnectorInitExpr) {
-            errMsg = getNodeLocationStr(location) +
-                    "connector initializer is not allowed here";
+            errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.CONNECTOR_INIT_NOT_ALLOWED_HERE);
 
         } else if (argExpr instanceof RefTypeInitExpr) {
-            errMsg = getNodeLocationStr(location) +
-                    "reference type initializer is not allowed here";
+            errMsg = BLangExceptionHelper.constructSemanticError(location,
+                    SemanticErrors.REF_TYPE_INTI_NOT_ALLOWED_HERE);
         }
 
         if (errMsg != null) {
